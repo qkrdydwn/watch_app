@@ -60,10 +60,12 @@ dependencies {
     // Wear Compose
     implementation 'androidx.wear.compose:compose-foundation:1.2.1'
     implementation 'androidx.wear.compose:compose-material:1.2.1'
+    implementation 'androidx.wear.compose:compose-navigation:1.2.1'
     
     // Firebase
     implementation platform('com.google.firebase:firebase-bom:31.2.0')
     implementation 'com.google.firebase:firebase-database-ktx'
+    implementation 'com.google.firebase:firebase-analytics-ktx'
     
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
