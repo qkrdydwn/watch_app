@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "525559657929",
+    "project_id": "heart-beat-a9bf3",
+    "storage_bucket": "heart-beat-a9bf3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:525559657929:android:30475a87b012b8e3386418",
+        "android_client_info": {
+          "package_name": "com.example.wearosapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDvKRGRu-ngxQoW1LMet0T4kVErz3Ch4oc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+} 
