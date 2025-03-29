@@ -168,7 +168,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     private fun sendBufferedData() {
         val timestamp = System.currentTimeMillis()
-        val dataRef = database.getReference("sensor_data/$timestamp")
+        val dataRef = database.getReference("sensor_data").push()
 
         synchronized(heartRateLock) {
             if (heartRateBuffer.isNotEmpty()) {
