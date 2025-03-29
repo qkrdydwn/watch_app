@@ -26,6 +26,12 @@ jobs:
         sudo unzip -d /opt/gradle gradle-7.6.1-bin.zip
         echo "export PATH=\$PATH:/opt/gradle/gradle-7.6.1/bin" >> $GITHUB_ENV
         
+    - name: Create Gradle Properties
+      run: |
+        echo "org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8" > gradle.properties
+        echo "android.useAndroidX=true" >> gradle.properties
+        echo "android.nonTransitiveRClass=true" >> gradle.properties
+        
     - name: Clean Gradle Cache
       run: |
         rm -rf ~/.gradle/caches/
