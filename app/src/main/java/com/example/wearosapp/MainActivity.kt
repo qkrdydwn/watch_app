@@ -25,11 +25,10 @@ import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ktx.database
-import com.google.firebase.ktx.Firebase
 import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : ComponentActivity(), SensorEventListener {
-    private lateinit var database: FirebaseDatabase
+    private val database = FirebaseDatabase.getInstance()
     private lateinit var sensorManager: SensorManager
     private var heartRateSensor: Sensor? = null
     private var gyroscopeSensor: Sensor? = null
@@ -45,8 +44,6 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Firebase.initialize(this)
-        database = Firebase.database
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         setupSensors()
 
