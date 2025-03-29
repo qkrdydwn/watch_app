@@ -26,8 +26,18 @@ jobs:
         sudo unzip -d /opt/gradle gradle-7.6.1-bin.zip
         echo "export PATH=\$PATH:/opt/gradle/gradle-7.6.1/bin" >> $GITHUB_ENV
         
+    - name: Clean Gradle Cache
+      run: |
+        rm -rf ~/.gradle/caches/
+        rm -rf .gradle
+        rm -rf build
+        rm -rf app/build
+        
     - name: Build APK
-      run: gradle assembleDebug
+      run: |
+        gradle --version
+        gradle clean
+        gradle assembleDebug --stacktrace
       
     - name: Create APK directory
       run: mkdir -p apk
