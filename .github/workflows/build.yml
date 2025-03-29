@@ -28,7 +28,7 @@ jobs:
         echo "distributionUrl=https\://services.gradle.org/distributions/gradle-7.6.1-bin.zip" >> gradle/wrapper/gradle-wrapper.properties
         echo "zipStoreBase=GRADLE_USER_HOME" >> gradle/wrapper/gradle-wrapper.properties
         echo "zipStorePath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
-        curl -L -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v7.6.1/gradle/wrapper/gradle-wrapper.jar
+        wget -O gradle/wrapper/gradle-wrapper.jar https://github.com/gradle/gradle/raw/v7.6.1/gradle/wrapper/gradle-wrapper.jar
         echo "#!/usr/bin/env sh" > gradlew
         echo "DIRNAME=\"\$(dirname \"\$(readlink -f \"\$0\")\")\"" >> gradlew
         echo "exec java -jar \"\$DIRNAME/gradle/wrapper/gradle-wrapper.jar\" \"\$@\"" >> gradlew
