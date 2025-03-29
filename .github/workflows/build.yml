@@ -19,19 +19,15 @@ jobs:
         java-version: '11'
         distribution: 'adopt'
         
-    - name: Generate Gradle Wrapper
+    - name: Download Gradle Wrapper
       run: |
-        rm -rf gradle
         mkdir -p gradle/wrapper
+        curl -L -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v7.6.1/gradle/wrapper/gradle-wrapper.jar
         echo "distributionBase=GRADLE_USER_HOME" > gradle/wrapper/gradle-wrapper.properties
         echo "distributionPath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
         echo "distributionUrl=https\://services.gradle.org/distributions/gradle-7.6.1-bin.zip" >> gradle/wrapper/gradle-wrapper.properties
         echo "zipStoreBase=GRADLE_USER_HOME" >> gradle/wrapper/gradle-wrapper.properties
         echo "zipStorePath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
-        wget -O gradle-wrapper.zip https://services.gradle.org/distributions/gradle-7.6.1-bin.zip
-        unzip -j gradle-wrapper.zip gradle-7.6.1/lib/gradle-wrapper-7.6.1.jar -d gradle/wrapper/
-        mv gradle/wrapper/gradle-wrapper-7.6.1.jar gradle/wrapper/gradle-wrapper.jar
-        rm gradle-wrapper.zip
         echo "#!/usr/bin/env sh" > gradlew
         echo "DIRNAME=\"\$(dirname \"\$(readlink -f \"\$0\")\")\"" >> gradlew
         echo "exec java -jar \"\$DIRNAME/gradle/wrapper/gradle-wrapper.jar\" \"\$@\"" >> gradlew
