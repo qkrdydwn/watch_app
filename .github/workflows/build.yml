@@ -45,16 +45,9 @@ jobs:
         gradle clean
         gradle assembleDebug --stacktrace
       
-    - name: Create APK directory
-      run: mkdir -p apk
-      
-    - name: Copy APK
-      run: cp app/build/outputs/apk/debug/app-debug.apk apk/
-      
-    - name: Commit APK
-      run: |
-        git config --global user.email "github-actions@github.com"
-        git config --global user.name "GitHub Actions"
-        git add apk/app-debug.apk
-        git commit -m "Add APK file"
-        git push 
+    - name: Upload APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: app-debug
+        path: app/build/outputs/apk/debug/app-debug.apk
+        retention-days: 7 
