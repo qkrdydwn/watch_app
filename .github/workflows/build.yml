@@ -45,16 +45,8 @@ jobs:
         gradle clean
         gradle assembleDebug --stacktrace
       
-    - name: Create APK directory
-      run: mkdir -p apk
-      
-    - name: Copy APK
-      run: cp app/build/outputs/apk/debug/app-debug.apk apk/
-      
     - name: Upload APK
-      run: |
-        curl -X POST \
-          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-          -H "Content-Type: application/octet-stream" \
-          --data-binary "@apk/app-debug.apk" \
-          "https://api.github.com/repos/${{ github.repository }}/contents/apk/app-debug.apk" 
+      uses: actions/upload-artifact@v2
+      with:
+        name: app-debug
+        path: app/build/outputs/apk/debug/app-debug.apk 
