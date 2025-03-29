@@ -19,22 +19,15 @@ jobs:
         java-version: '11'
         distribution: 'adopt'
         
-    - name: Download Gradle Wrapper
+    - name: Install Gradle
       run: |
-        mkdir -p gradle/wrapper
-        curl -L -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v7.6.1/gradle/wrapper/gradle-wrapper.jar
-        echo "distributionBase=GRADLE_USER_HOME" > gradle/wrapper/gradle-wrapper.properties
-        echo "distributionPath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
-        echo "distributionUrl=https\://services.gradle.org/distributions/gradle-7.6.1-bin.zip" >> gradle/wrapper/gradle-wrapper.properties
-        echo "zipStoreBase=GRADLE_USER_HOME" >> gradle/wrapper/gradle-wrapper.properties
-        echo "zipStorePath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
-        echo "#!/usr/bin/env sh" > gradlew
-        echo "DIRNAME=\"\$(dirname \"\$(readlink -f \"\$0\")\")\"" >> gradlew
-        echo "exec java -jar \"\$DIRNAME/gradle/wrapper/gradle-wrapper.jar\" \"\$@\"" >> gradlew
-        chmod +x gradlew
+        wget https://services.gradle.org/distributions/gradle-7.6.1-bin.zip
+        sudo mkdir /opt/gradle
+        sudo unzip -d /opt/gradle gradle-7.6.1-bin.zip
+        echo "export PATH=\$PATH:/opt/gradle/gradle-7.6.1/bin" >> $GITHUB_ENV
         
     - name: Build APK
-      run: ./gradlew assembleDebug
+      run: gradle assembleDebug
       
     - name: Create APK directory
       run: mkdir -p apk
