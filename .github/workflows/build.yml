@@ -24,7 +24,7 @@ jobs:
         gradle-version: 7.5
         
     - name: Build with Gradle
-      run: gradle assembleDebug
+      run: gradle assembleDebug -Pandroid.nonTransitiveRClass=true
       
     - name: Create Release
       id: create_release
