@@ -45,8 +45,13 @@ jobs:
         gradle clean
         gradle assembleDebug --stacktrace
       
+    - name: Create APK directory
+      run: mkdir -p apk
+      
+    - name: Copy APK
+      run: cp app/build/outputs/apk/debug/app-debug.apk apk/
+      
     - name: Upload APK
-      uses: actions/upload-artifact@v3
-      with:
-        name: app-debug
-        path: app/build/outputs/apk/debug/app-debug.apk 
+      run: |
+        echo "APK has been built successfully!"
+        echo "You can find the APK at: app/build/outputs/apk/debug/app-debug.apk" 
