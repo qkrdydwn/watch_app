@@ -12,13 +12,12 @@ import android.os.Looper
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.wear.compose.material.*
 import androidx.wear.compose.navigation.SwipeDismissableNavHost
@@ -27,273 +26,205 @@ import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ktx.database
 import com.google.firebase.ktx.Firebase
-import java.text.SimpleDateFormat
-import java.util.*
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : ComponentActivity(), SensorEventListener {
     private lateinit var database: FirebaseDatabase
     private lateinit var sensorManager: SensorManager
-    private lateinit var heartRateSensor: Sensor
-    private lateinit var gyroscopeSensor: Sensor
-    private lateinit var accelerometerSensor: Sensor
-    
-    private var isCollecting = false
+    private var heartRateSensor: Sensor? = null
+    private var gyroscopeSensor: Sensor? = null
+    private var accelerometerSensor: Sensor? = null
+    private val isCollecting = AtomicBoolean(false)
     private val handler = Handler(Looper.getMainLooper())
-    
-    // 데이터 버퍼
-    private val heartRateBuffer = mutableListOf<Float>()
+    private val heartRateBuffer = mutableListOf<Int>()
     private val gyroscopeBuffer = mutableListOf<Triple<Float, Float, Float>>()
     private val accelerometerBuffer = mutableListOf<Triple<Float, Float, Float>>()
-    
-    // 데이터 전송 주기 (밀리초)
-    private val heartRateInterval = 1000L
-    private val sensorInterval = 100L
-    
-    private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            startSensorCollection()
-        } else {
-            Toast.makeText(this, "센서 권한이 필요합니다", Toast.LENGTH_SHORT).show()
-        }
-    }
+    private val heartRateLock = Object()
+    private val gyroscopeLock = Object()
+    private val accelerometerLock = Object()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Firebase.initialize(this)
+        database = Firebase.database
+        sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
+        setupSensors()
+
+        setContent {
+            WearApp()
+        }
+    }
+
+    @Composable
+    fun WearApp() {
+        val navController = rememberSwipeDismissableNavController()
         
-        try {
-            // Firebase 초기화
-            Firebase.initialize(this)
-            database = Firebase.database
-            
-            // 센서 초기화
-            sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
-            heartRateSensor = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE)
-            gyroscopeSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
-            accelerometerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-            
-            if (heartRateSensor == null || gyroscopeSensor == null || accelerometerSensor == null) {
-                Toast.makeText(this, "필요한 센서를 찾을 수 없습니다", Toast.LENGTH_LONG).show()
-                return
-            }
-            
-            setContent {
-                WearApp(database, this)
-            }
-        } catch (e: Exception) {
-            Toast.makeText(this, "앱 초기화 중 오류 발생: ${e.message}", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        checkAndRequestPermissions()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        stopSensorCollection()
-    }
-
-    private fun checkAndRequestPermissions() {
-        when {
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.BODY_SENSORS
-            ) == PackageManager.PERMISSION_GRANTED -> {
-                startSensorCollection()
-            }
-            else -> {
-                requestPermissionLauncher.launch(Manifest.permission.BODY_SENSORS)
+        SwipeDismissableNavHost(
+            navController = navController,
+            startDestination = "main"
+        ) {
+            composable("main") {
+                MainScreen(
+                    isCollecting = isCollecting.get(),
+                    onStartStop = { 
+                        if (isCollecting.get()) {
+                            stopSensorCollection()
+                        } else {
+                            startSensorCollection()
+                        }
+                    }
+                )
             }
         }
     }
 
-    private fun startSensorCollection() {
-        try {
-            isCollecting = true
-            sensorManager.registerListener(this, heartRateSensor, SensorManager.SENSOR_DELAY_NORMAL)
-            sensorManager.registerListener(this, gyroscopeSensor, SensorManager.SENSOR_DELAY_GAME)
-            sensorManager.registerListener(this, accelerometerSensor, SensorManager.SENSOR_DELAY_GAME)
-            
-            // 주기적으로 데이터 전송
-            startPeriodicDataTransmission()
-        } catch (e: Exception) {
-            Toast.makeText(this, "센서 데이터 수집 시작 중 오류 발생: ${e.message}", Toast.LENGTH_LONG).show()
+    @Composable
+    fun MainScreen(
+        isCollecting: Boolean,
+        onStartStop: () -> Unit
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Button(
+                onClick = onStartStop,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Text(if (isCollecting) "Stop" else "Start")
+            }
         }
     }
 
-    private fun stopSensorCollection() {
-        isCollecting = false
-        try {
-            sensorManager.unregisterListener(this)
-            handler.removeCallbacksAndMessages(null)
-        } catch (e: Exception) {
-            Toast.makeText(this, "센서 데이터 수집 중지 중 오류 발생: ${e.message}", Toast.LENGTH_LONG).show()
+    private fun setupSensors() {
+        heartRateSensor = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE)
+        gyroscopeSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+        accelerometerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+
+        if (heartRateSensor == null || gyroscopeSensor == null || accelerometerSensor == null) {
+            Toast.makeText(this, "Some sensors are not available", Toast.LENGTH_SHORT).show()
         }
     }
 
-    private fun startPeriodicDataTransmission() {
+    fun startSensorCollection() {
+        if (!checkPermissions()) {
+            requestPermissions()
+            return
+        }
+
+        isCollecting.set(true)
+        heartRateBuffer.clear()
+        gyroscopeBuffer.clear()
+        accelerometerBuffer.clear()
+
+        heartRateSensor?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+        }
+        gyroscopeSensor?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
+        }
+        accelerometerSensor?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
+        }
+
+        startDataTransmission()
+    }
+
+    fun stopSensorCollection() {
+        isCollecting.set(false)
+        sensorManager.unregisterListener(this)
+        handler.removeCallbacksAndMessages(null)
+        sendBufferedData()
+    }
+
+    private fun checkPermissions(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.BODY_SENSORS
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun requestPermissions() {
+        ActivityCompat.requestPermissions(
+            this,
+            arrayOf(Manifest.permission.BODY_SENSORS),
+            SENSOR_PERMISSION_REQUEST_CODE
+        )
+    }
+
+    private fun startDataTransmission() {
         handler.postDelayed(object : Runnable {
             override fun run() {
-                if (isCollecting) {
+                if (isCollecting.get()) {
                     sendBufferedData()
-                    handler.postDelayed(this, heartRateInterval)
+                    handler.postDelayed(this, TRANSMISSION_INTERVAL)
                 }
             }
-        }, heartRateInterval)
+        }, TRANSMISSION_INTERVAL)
     }
 
     private fun sendBufferedData() {
-        try {
-            val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault()).format(Date())
-            val dataRef = database.getReference("wear_data")
-            
-            // 심박수 데이터 전송
+        val timestamp = System.currentTimeMillis()
+        val dataRef = database.getReference("sensor_data/$timestamp")
+
+        synchronized(heartRateLock) {
             if (heartRateBuffer.isNotEmpty()) {
-                val avgHeartRate = heartRateBuffer.average()
-                val data = mapOf(
-                    "timestamp" to timestamp,
-                    "type" to "heart_rate",
-                    "value" to avgHeartRate
-                )
-                dataRef.push().setValue(data)
+                dataRef.child("heart_rate").setValue(heartRateBuffer)
                 heartRateBuffer.clear()
             }
-            
-            // 자이로스코프 데이터 전송
+        }
+
+        synchronized(gyroscopeLock) {
             if (gyroscopeBuffer.isNotEmpty()) {
-                val avgGyro = gyroscopeBuffer.reduce { acc, triple ->
-                    Triple(
-                        acc.first + triple.first,
-                        acc.second + triple.second,
-                        acc.third + triple.third
-                    )
-                }
-                val count = gyroscopeBuffer.size.toFloat()
-                val data = mapOf(
-                    "timestamp" to timestamp,
-                    "type" to "gyroscope",
-                    "x" to avgGyro.first / count,
-                    "y" to avgGyro.second / count,
-                    "z" to avgGyro.third / count
-                )
-                dataRef.push().setValue(data)
+                dataRef.child("gyroscope").setValue(gyroscopeBuffer)
                 gyroscopeBuffer.clear()
             }
-            
-            // 가속도 데이터 전송
+        }
+
+        synchronized(accelerometerLock) {
             if (accelerometerBuffer.isNotEmpty()) {
-                val avgAccel = accelerometerBuffer.reduce { acc, triple ->
-                    Triple(
-                        acc.first + triple.first,
-                        acc.second + triple.second,
-                        acc.third + triple.third
-                    )
-                }
-                val count = accelerometerBuffer.size.toFloat()
-                val data = mapOf(
-                    "timestamp" to timestamp,
-                    "type" to "accelerometer",
-                    "x" to avgAccel.first / count,
-                    "y" to avgAccel.second / count,
-                    "z" to avgAccel.third / count
-                )
-                dataRef.push().setValue(data)
+                dataRef.child("accelerometer").setValue(accelerometerBuffer)
                 accelerometerBuffer.clear()
             }
-        } catch (e: Exception) {
-            Toast.makeText(this, "데이터 전송 중 오류 발생: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
     override fun onSensorChanged(event: SensorEvent) {
-        if (!isCollecting) return
+        if (!isCollecting.get()) return
 
-        try {
-            when (event.sensor.type) {
-                Sensor.TYPE_HEART_RATE -> {
-                    synchronized(heartRateBuffer) {
-                        heartRateBuffer.add(event.values[0])
-                    }
-                }
-                Sensor.TYPE_GYROSCOPE -> {
-                    synchronized(gyroscopeBuffer) {
-                        gyroscopeBuffer.add(Triple(event.values[0], event.values[1], event.values[2]))
-                    }
-                }
-                Sensor.TYPE_ACCELEROMETER -> {
-                    synchronized(accelerometerBuffer) {
-                        accelerometerBuffer.add(Triple(event.values[0], event.values[1], event.values[2]))
-                    }
+        when (event.sensor.type) {
+            Sensor.TYPE_HEART_RATE -> {
+                synchronized(heartRateLock) {
+                    heartRateBuffer.add(event.values[0].toInt())
                 }
             }
-        } catch (e: Exception) {
-            Toast.makeText(this, "센서 데이터 처리 중 오류 발생: ${e.message}", Toast.LENGTH_LONG).show()
+            Sensor.TYPE_GYROSCOPE -> {
+                synchronized(gyroscopeLock) {
+                    gyroscopeBuffer.add(Triple(event.values[0], event.values[1], event.values[2]))
+                }
+            }
+            Sensor.TYPE_ACCELEROMETER -> {
+                synchronized(accelerometerLock) {
+                    accelerometerBuffer.add(Triple(event.values[0], event.values[1], event.values[2]))
+                }
+            }
         }
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-        when (accuracy) {
-            SensorManager.SENSOR_STATUS_UNRELIABLE -> {
-                Toast.makeText(this, "센서 데이터가 신뢰할 수 없습니다", Toast.LENGTH_SHORT).show()
-            }
-            SensorManager.SENSOR_STATUS_ACCURACY_LOW -> {
-                Toast.makeText(this, "센서 정확도가 낮습니다", Toast.LENGTH_SHORT).show()
-            }
-        }
+        // Not needed for this implementation
     }
-}
 
-@Composable
-fun WearApp(database: FirebaseDatabase, activity: MainActivity) {
-    val navController = rememberSwipeDismissableNavController()
-    
-    SwipeDismissableNavHost(
-        navController = navController,
-        startDestination = "home"
-    ) {
-        composable("home") {
-            HomeScreen(database, activity)
-        }
+    override fun onDestroy() {
+        super.onDestroy()
+        stopSensorCollection()
     }
-}
 
-@Composable
-fun HomeScreen(database: FirebaseDatabase, activity: MainActivity) {
-    val context = LocalContext.current
-    var isCollecting by remember { mutableStateOf(false) }
-    
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = "센서 데이터 수집",
-            style = MaterialTheme.typography.title1
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        Button(
-            onClick = {
-                isCollecting = !isCollecting
-                if (isCollecting) {
-                    activity.startSensorCollection()
-                    Toast.makeText(context, "데이터 수집 시작", Toast.LENGTH_SHORT).show()
-                } else {
-                    activity.stopSensorCollection()
-                    Toast.makeText(context, "데이터 수집 중지", Toast.LENGTH_SHORT).show()
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(if (isCollecting) "수집 중지" else "수집 시작")
-        }
+    companion object {
+        private const val SENSOR_PERMISSION_REQUEST_CODE = 100
+        private const val TRANSMISSION_INTERVAL = 1000L // 1 second
     }
 } 
