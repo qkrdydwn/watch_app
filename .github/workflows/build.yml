@@ -30,6 +30,7 @@ jobs:
         echo "zipStorePath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
         curl -L -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v7.6.1/gradle/wrapper/gradle-wrapper.jar
         echo "#!/usr/bin/env sh" > gradlew
+        echo "DIRNAME=\"\$(dirname \"\$(readlink -f \"\$0\")\")\"" >> gradlew
         echo "exec java -jar \"\$DIRNAME/gradle/wrapper/gradle-wrapper.jar\" \"\$@\"" >> gradlew
         chmod +x gradlew
         
