@@ -21,7 +21,7 @@ jobs:
     - name: Setup Gradle
       uses: gradle/gradle-build-action@v2
       with:
-        gradle-version: 8.0.0
+        gradle-version: 7.6.1
         
     - name: Build with Gradle
       run: gradle assembleDebug -Pandroid.nonTransitiveRClass=true
