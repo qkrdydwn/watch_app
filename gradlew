@@ -39,10 +39,13 @@ do
     esac
 done
 
-# This is normally unused
-# shellcheck disable=SC2034
-APP_BASE_NAME=${0##*/}
 APP_HOME=$( cd "${APP_HOME:-./}" && pwd -P ) || exit
+
+APP_NAME="Gradle"
+APP_BASE_NAME=${0##*/}
+
+# Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
+DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
 
 # Use the maximum available, or set MAX_FD != -1 to use that value.
 MAX_FD=maximum
@@ -98,16 +101,12 @@ fi
 if ! "$cygwin" && ! "$darwin" && ! "$nonstop" ; then
     case $MAX_FD in #(
       max*)
-        # In POSIX sh, ulimit -H is undefined. That's why the result is checked to see if it worked.
-        # shellcheck disable=SC3045
         MAX_FD=$( ulimit -H -n ) ||
             warn "Could not query maximum file descriptor limit"
     esac
     case $MAX_FD in  #(
       '' | soft) :;; #(
       *)
-        # In POSIX sh, ulimit -n is undefined. That's why the result is checked to see if it worked.
-        # shellcheck disable=SC3045
         ulimit -n "$MAX_FD" ||
             warn "Could not set maximum file descriptor limit to $MAX_FD"
     esac
@@ -128,29 +127,50 @@ if "$cygwin" || "$msys" ; then
 
     JAVACMD=$( cygpath --unix "$JAVACMD" )
 
-    # Now convert the arguments - kludge to limit ourselves to /bin/sh
-    for arg do
-        if
-            case $arg in                                #(
-              -*)   false ;;                            # don't mess with options #(
-              /?*)  t=${arg#/} t=/${t%%/*}              # looks like a POSIX filepath
-                    [ -e "$t" ] ;;                      #(
-              *)    false ;;
-            esac
-        then
-            arg=$( cygpath --path --ignore --mixed "$arg" )
-        fi
-        # Roll the args list around exactly as many times as the number of
-        # args, so each arg winds up back in the position where it started, but
-        # possibly modified.
-        #
-        # NB: a `for` loop captures its iteration list before it begins, so
-        # changing the positional parameters here affects neither the number of
-        # iterations, nor the values presented in `arg`.
-        shift                   # remove old arg
-        set -- "$@" "$arg"     # push replacement arg
+    # We build the pattern for arguments to be converted via cygpath
+    ROOTDIRSRAW=$( find -L / -maxdepth 1 -mindepth 1 -type d 2>/dev/null )
+    SEP=""
+    for dir in $ROOTDIRSRAW ; do
+        ROOTDIRS="$ROOTDIRS$SEP$dir"
+        SEP="|"
     done
+    OURCYGPATTERN="(^($ROOTDIRS))"
+    # Add a user-defined pattern to the cygpath arguments
+    if [ "$GRADLE_CYGPATTERN" != "" ] ; then
+        OURCYGPATTERN="$OURCYGPATTERN|($GRADLE_CYGPATTERN)"
+    fi
+    # Now convert the arguments - kludge to limit ourselves to /bin/sh
+    i=0
+    for arg in "$@" ; do
+        CHECK=$( echo "$arg"| grep -E "$OURCYGPATTERN" )
+        CHECK2=$( echo "$arg"| grep -E "^-" )
+        if [ "$CHECK" != "" ] && [ "$CHECK2" == "" ] ; then
+            eval set -- "$@" "$( cygpath --path --ignore --mixed "$arg" )"
+        else
+            eval set -- "$@" "$arg"
+        fi
+        i=$((i+1))
+    done
+    case $i in
+        (0) set -- ;;
+        (1) set -- "$args0" ;;
+        (2) set -- "$args0" "$args1" ;;
+        (3) set -- "$args0" "$args1" "$args2" ;;
+        (4) set -- "$args0" "$args1" "$args2" "$args3" ;;
+        (5) set -- "$args0" "$args1" "$args2" "$args3" "$args4" ;;
+        (6) set -- "$args0" "$args1" "$args2" "$args3" "$args4" "$args5" ;;
+        (7) set -- "$args0" "$args1" "$args2" "$args3" "$args4" "$args5" "$args6" ;;
+        (8) set -- "$args0" "$args1" "$args2" "$args3" "$args4" "$args5" "$args6" "$args7" ;;
+        (9) set -- "$args0" "$args1" "$args2" "$args3" "$args4" "$args5" "$args6" "$args7" "$args8" ;;
+    esac
 fi
+
+# Escape application args
+save () {
+    for i do printf %s\\n "$i" | sed "s/'/'\\\\''/g;1s/^/'/;\$s/\$/' \\\\/" ; done
+    echo " "
+}
+APP_ARGS=$(save "$@")
 
 # Collect all arguments for the java command;
 #   * $DEFAULT_JVM_OPTS, $JAVA_OPTS, and $GRADLE_OPTS can contain fragments of
@@ -162,32 +182,6 @@ set -- \
         "-Dorg.gradle.appname=$APP_BASE_NAME" \
         -classpath "$CLASSPATH" \
         org.gradle.wrapper.GradleWrapperMain \
-        "$@"
-
-# Use "xargs" to parse quoted args.
-#
-# With -n1 it outputs one arg per line, with the quotes and backslashes removed.
-#
-# In Bash we could simply go:
-#
-#   readarray ARGS < <( xargs -n1 <<<"$var" ) &&
-#   set -- "${ARGS[@]}" "$@"
-#
-# but POSIX shell has neither arrays nor command substitution, so instead we
-# post-process each arg (as a line of input to sed) to backslash-escape any
-# character that might be a shell metacharacter, then use eval to reverse
-# that process (while maintaining the separation between arguments), and wrap
-# the whole thing up as a single "set" statement.
-#
-# This will of course break if any of these variables contains a newline or
-# an unmatched quote.
-#
-
-eval "set -- $(
-        printf '%s\n' "$DEFAULT_JVM_OPTS $JAVA_OPTS $GRADLE_OPTS" |
-        xargs -n1 |
-        sed ' s~[^-[:alnum:]+,./:=@_]~\\&~g; ' |
-        tr '\n' ' '
-    )" '"$@"'
+        "$APP_ARGS"
 
 exec "$JAVACMD" "$@" 
