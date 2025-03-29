@@ -1,53 +1,33 @@
-name: Build APK
+name: Android CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ main ]
+    branches: [ "main" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
-    
-    - name: Set up JDK 11
-      uses: actions/setup-java@v2
+    - uses: actions/checkout@v3
+    - name: set up JDK 17
+      uses: actions/setup-java@v3
       with:
-        java-version: '11'
-        distribution: 'adopt'
-        
-    - name: Install Gradle
-      run: |
-        wget https://services.gradle.org/distributions/gradle-7.6.1-bin.zip
-        sudo mkdir /opt/gradle
-        sudo unzip -d /opt/gradle gradle-7.6.1-bin.zip
-        echo "export PATH=\$PATH:/opt/gradle/gradle-7.6.1/bin" >> $GITHUB_ENV
-        
-    - name: Create Gradle Properties
-      run: |
-        echo "org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8" > gradle.properties
-        echo "android.useAndroidX=true" >> gradle.properties
-        echo "android.nonTransitiveRClass=true" >> gradle.properties
-        
-    - name: Clean Gradle Cache
-      run: |
-        rm -rf ~/.gradle/caches/
-        rm -rf .gradle
-        rm -rf build
-        rm -rf app/build
-        
-    - name: Build APK
-      run: |
-        gradle --version
-        gradle clean
-        gradle assembleDebug --stacktrace
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
       
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
+    - name: Build with Gradle
+      run: ./gradlew assembleDebug 
+
+    - name: Upload Debug APK
+      uses: actions/upload-artifact@v3
       with:
-        name: app-debug
+        name: app-debug.apk
         path: app/build/outputs/apk/debug/app-debug.apk
-        retention-days: 7 
+        if-no-files-found: error 
