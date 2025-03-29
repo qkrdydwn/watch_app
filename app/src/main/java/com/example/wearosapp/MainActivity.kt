@@ -20,11 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.wear.compose.material.*
-import androidx.wear.compose.navigation.SwipeDismissableNavHost
-import androidx.wear.compose.navigation.composable
-import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ktx.database
 import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : ComponentActivity(), SensorEventListener {
@@ -35,12 +31,15 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     private var accelerometerSensor: Sensor? = null
     private val isCollecting = AtomicBoolean(false)
     private val handler = Handler(Looper.getMainLooper())
+    
+    // 데이터 버퍼
     private val heartRateBuffer = mutableListOf<Int>()
     private val gyroscopeBuffer = mutableListOf<Triple<Float, Float, Float>>()
     private val accelerometerBuffer = mutableListOf<Triple<Float, Float, Float>>()
-    private val heartRateLock = Object()
-    private val gyroscopeLock = Object()
-    private val accelerometerLock = Object()
+    
+    // 데이터 전송 주기 (밀리초)
+    private val heartRateInterval = 1000L
+    private val sensorInterval = 100L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,32 +53,6 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     @Composable
     fun WearApp() {
-        val navController = rememberSwipeDismissableNavController()
-        
-        SwipeDismissableNavHost(
-            navController = navController,
-            startDestination = "main"
-        ) {
-            composable("main") {
-                MainScreen(
-                    isCollecting = isCollecting.get(),
-                    onStartStop = { 
-                        if (isCollecting.get()) {
-                            stopSensorCollection()
-                        } else {
-                            startSensorCollection()
-                        }
-                    }
-                )
-            }
-        }
-    }
-
-    @Composable
-    fun MainScreen(
-        isCollecting: Boolean,
-        onStartStop: () -> Unit
-    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -88,10 +61,16 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             verticalArrangement = Arrangement.Center
         ) {
             Button(
-                onClick = onStartStop,
+                onClick = { 
+                    if (isCollecting.get()) {
+                        stopSensorCollection()
+                    } else {
+                        startSensorCollection()
+                    }
+                },
                 modifier = Modifier.size(48.dp)
             ) {
-                Text(if (isCollecting) "Stop" else "Start")
+                Text(if (isCollecting.get()) "Stop" else "Start")
             }
         }
     }
@@ -106,7 +85,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         }
     }
 
-    fun startSensorCollection() {
+    private fun startSensorCollection() {
         if (!checkPermissions()) {
             requestPermissions()
             return
@@ -130,7 +109,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         startDataTransmission()
     }
 
-    fun stopSensorCollection() {
+    private fun stopSensorCollection() {
         isCollecting.set(false)
         sensorManager.unregisterListener(this)
         handler.removeCallbacksAndMessages(null)
@@ -157,35 +136,29 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             override fun run() {
                 if (isCollecting.get()) {
                     sendBufferedData()
-                    handler.postDelayed(this, TRANSMISSION_INTERVAL)
+                    handler.postDelayed(this, heartRateInterval)
                 }
             }
-        }, TRANSMISSION_INTERVAL)
+        }, heartRateInterval)
     }
 
     private fun sendBufferedData() {
         val timestamp = System.currentTimeMillis()
         val dataRef = database.getReference("sensor_data").push()
 
-        synchronized(heartRateLock) {
-            if (heartRateBuffer.isNotEmpty()) {
-                dataRef.child("heart_rate").setValue(heartRateBuffer)
-                heartRateBuffer.clear()
-            }
+        if (heartRateBuffer.isNotEmpty()) {
+            dataRef.child("heart_rate").setValue(heartRateBuffer)
+            heartRateBuffer.clear()
         }
 
-        synchronized(gyroscopeLock) {
-            if (gyroscopeBuffer.isNotEmpty()) {
-                dataRef.child("gyroscope").setValue(gyroscopeBuffer)
-                gyroscopeBuffer.clear()
-            }
+        if (gyroscopeBuffer.isNotEmpty()) {
+            dataRef.child("gyroscope").setValue(gyroscopeBuffer)
+            gyroscopeBuffer.clear()
         }
 
-        synchronized(accelerometerLock) {
-            if (accelerometerBuffer.isNotEmpty()) {
-                dataRef.child("accelerometer").setValue(accelerometerBuffer)
-                accelerometerBuffer.clear()
-            }
+        if (accelerometerBuffer.isNotEmpty()) {
+            dataRef.child("accelerometer").setValue(accelerometerBuffer)
+            accelerometerBuffer.clear()
         }
     }
 
@@ -194,19 +167,13 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
         when (event.sensor.type) {
             Sensor.TYPE_HEART_RATE -> {
-                synchronized(heartRateLock) {
-                    heartRateBuffer.add(event.values[0].toInt())
-                }
+                heartRateBuffer.add(event.values[0].toInt())
             }
             Sensor.TYPE_GYROSCOPE -> {
-                synchronized(gyroscopeLock) {
-                    gyroscopeBuffer.add(Triple(event.values[0], event.values[1], event.values[2]))
-                }
+                gyroscopeBuffer.add(Triple(event.values[0], event.values[1], event.values[2]))
             }
             Sensor.TYPE_ACCELEROMETER -> {
-                synchronized(accelerometerLock) {
-                    accelerometerBuffer.add(Triple(event.values[0], event.values[1], event.values[2]))
-                }
+                accelerometerBuffer.add(Triple(event.values[0], event.values[1], event.values[2]))
             }
         }
     }
@@ -222,6 +189,5 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     companion object {
         private const val SENSOR_PERMISSION_REQUEST_CODE = 100
-        private const val TRANSMISSION_INTERVAL = 1000L // 1 second
     }
 } 
